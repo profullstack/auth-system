@@ -1,0 +1,49 @@
+{
+  "name": "@profullstack/auth-system",
+  "version": "0.2.0",
+  "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./jwt": "./dist/adapters/jwt.js",
+    "./session": "./dist/adapters/session.js",
+    "./supabase": "./dist/adapters/supabase.js",
+    "./firebase": "./dist/adapters/firebase.js"
+  },
+  "scripts": {
+    "build": "mkdir -p dist && cp -r src/* dist/",
+    "test": "node test/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "authentication",
+    "auth",
+    "login",
+    "register",
+    "password",
+    "reset",
+    "session",
+    "jwt",
+    "security"
+  ],
+  "author": "ProFullStack",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^11.1.0"
+  },
+  "optionalDependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/profullstack/auth-system"
+  },
+  "bugs": {
+    "url": "https://github.com/profullstack/auth-system/issues"
+  },
+  "homepage": "https://github.com/profullstack/auth-system#readme"
+}
