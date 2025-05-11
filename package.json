@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/auth-system",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
   "type": "module",
   "main": "dist/index.js",
@@ -14,8 +14,11 @@
   },
   "scripts": {
     "build": "mkdir -p dist && cp -r src/* dist/",
-    "test": "node test/index.js",
+    "test": "pnpm install && node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   },
   "keywords": [
     "authentication",
