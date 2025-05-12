@@ -629,6 +629,11 @@ class AuthSystem {
 // Create adapters
 export { MemoryAdapter } from './adapters/memory.js';
 export { JwtAdapter } from './adapters/jwt.js';
+export { SupabaseAdapter } from './adapters/supabase.js';
+export { MySQLAdapter } from './adapters/mysql.js';
+export { PostgresAdapter } from './adapters/postgres.js';
+export { MongoDBAdapter } from './adapters/mongodb.js';
+export { PocketBaseAdapter } from './adapters/pocketbase.js';
 
 // Create utilities
 export { createPasswordUtils } from './utils/password.js';
