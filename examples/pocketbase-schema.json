@@ -1,0 +1,75 @@
+{
+  "collections": [
+    {
+      "name": "auth_users",
+      "type": "base",
+      "schema": [
+        {
+          "name": "email",
+          "type": "email",
+          "required": true,
+          "unique": true
+        },
+        {
+          "name": "password",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "profile",
+          "type": "json"
+        },
+        {
+          "name": "emailVerified",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "name": "createdAt",
+          "type": "date"
+        },
+        {
+          "name": "updatedAt",
+          "type": "date"
+        },
+        {
+          "name": "lastLoginAt",
+          "type": "date"
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_auth_users_email ON auth_users (email)"
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "",
+      "updateRule": "",
+      "deleteRule": ""
+    },
+    {
+      "name": "auth_invalidated_tokens",
+      "type": "base",
+      "schema": [
+        {
+          "name": "token",
+          "type": "text",
+          "required": true,
+          "unique": true
+        },
+        {
+          "name": "invalidatedAt",
+          "type": "date",
+          "required": true
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_auth_invalidated_tokens_token ON auth_invalidated_tokens (token)"
+      ],
+      "listRule": "",
+      "viewRule": "",
+      "createRule": "",
+      "updateRule": "",
+      "deleteRule": ""
+    }
+  ]
+}

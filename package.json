@@ -10,7 +10,11 @@
     "./jwt": "./dist/adapters/jwt.js",
     "./session": "./dist/adapters/session.js",
     "./supabase": "./dist/adapters/supabase.js",
-    "./firebase": "./dist/adapters/firebase.js"
+    "./firebase": "./dist/adapters/firebase.js",
+    "./mysql": "./dist/adapters/mysql.js",
+    "./postgres": "./dist/adapters/postgres.js",
+    "./mongodb": "./dist/adapters/mongodb.js",
+    "./pocketbase": "./dist/adapters/pocketbase.js"
   },
   "scripts": {
     "build": "mkdir -p dist && cp -r src/* dist/",
@@ -40,7 +44,11 @@
     "uuid": "^11.1.0"
   },
   "optionalDependencies": {
-    "@supabase/supabase-js": "^2.49.4"
+    "@supabase/supabase-js": "^2.49.4",
+    "mysql2": "^3.9.2",
+    "pg": "^8.11.3",
+    "mongodb": "^6.5.0",
+    "pocketbase": "^0.21.1"
   },
   "repository": {
     "type": "git",

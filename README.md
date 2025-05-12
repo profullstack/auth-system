@@ -8,7 +8,7 @@ A flexible authentication system with user registration, login/logout, password 
 - **Authentication**: JWT-based authentication with access and refresh tokens
 - **Password Management**: Secure password hashing, validation, reset
 - **Email Verification**: Email verification for new accounts
-- **Adapters**: Pluggable storage adapters (memory, database, etc.)
+- **Adapters**: Pluggable storage adapters (memory, Supabase, MySQL, PostgreSQL, MongoDB, PocketBase, etc.)
 - **Middleware**: Express/Connect/Hono middleware for protected routes
 - **Validation**: Input validation for emails, passwords, etc.
 - **Customization**: Configurable password requirements, token expiry, etc.
@@ -253,6 +253,131 @@ const authSystem = createAuthSystem({
 });
 ```
 
+### Supabase Adapter
+
+Uses Supabase for user storage and authentication. Requires the `@supabase/supabase-js` package.
+
+```javascript
+import { createAuthSystem, SupabaseAdapter } from '@profullstack/auth-system';
+
+const supabaseAdapter = new SupabaseAdapter({
+  supabaseUrl: 'https://your-project-id.supabase.co',
+  supabaseKey: 'your-supabase-api-key',
+  tableName: 'users', // Optional: defaults to 'users'
+  tokensTableName: 'invalidated_tokens' // Optional: defaults to 'invalidated_tokens'
+});
+
+const authSystem = createAuthSystem({
+  adapter: supabaseAdapter,
+  tokenOptions: {
+    secret: 'your-jwt-secret-key'
+  }
+});
+```
+
+> **Note:** Before using the Supabase adapter, you need to set up the required tables in your Supabase database. You can use the [supabase-schema.sql](./examples/supabase-schema.sql) file to create the necessary tables and indexes.
+
+### MySQL Adapter
+
+Uses MySQL for user storage and authentication. Requires the `mysql2` package.
+
+```javascript
+import { createAuthSystem, MySQLAdapter } from '@profullstack/auth-system';
+
+const mysqlAdapter = new MySQLAdapter({
+  host: 'localhost',
+  port: 3306,
+  database: 'auth_system',
+  user: 'root',
+  password: 'password',
+  usersTable: 'users', // Optional: defaults to 'users'
+  tokensTable: 'invalidated_tokens' // Optional: defaults to 'invalidated_tokens'
+});
+
+const authSystem = createAuthSystem({
+  adapter: mysqlAdapter,
+  tokenOptions: {
+    secret: 'your-jwt-secret-key'
+  }
+});
+```
+
+> **Note:** This is a stub implementation. You'll need to complete the implementation before using it in production.
+
+### PostgreSQL Adapter
+
+Uses PostgreSQL for user storage and authentication. Requires the `pg` package.
+
+```javascript
+import { createAuthSystem, PostgresAdapter } from '@profullstack/auth-system';
+
+const postgresAdapter = new PostgresAdapter({
+  host: 'localhost',
+  port: 5432,
+  database: 'auth_system',
+  user: 'postgres',
+  password: 'password',
+  usersTable: 'users', // Optional: defaults to 'users'
+  tokensTable: 'invalidated_tokens' // Optional: defaults to 'invalidated_tokens'
+});
+
+const authSystem = createAuthSystem({
+  adapter: postgresAdapter,
+  tokenOptions: {
+    secret: 'your-jwt-secret-key'
+  }
+});
+```
+
+> **Note:** This is a stub implementation. You'll need to complete the implementation before using it in production.
+
+### MongoDB Adapter
+
+Uses MongoDB for user storage and authentication. Requires the `mongodb` package.
+
+```javascript
+import { createAuthSystem, MongoDBAdapter } from '@profullstack/auth-system';
+
+const mongodbAdapter = new MongoDBAdapter({
+  uri: 'mongodb://localhost:27017',
+  dbName: 'auth_system',
+  usersCollection: 'users', // Optional: defaults to 'users'
+  tokensCollection: 'invalidated_tokens' // Optional: defaults to 'invalidated_tokens'
+});
+
+const authSystem = createAuthSystem({
+  adapter: mongodbAdapter,
+  tokenOptions: {
+    secret: 'your-jwt-secret-key'
+  }
+});
+```
+
+> **Note:** This is a stub implementation. You'll need to complete the implementation before using it in production.
+
+### PocketBase Adapter
+
+Uses PocketBase for user storage and authentication. Requires the `pocketbase` package.
+
+```javascript
+import { createAuthSystem, PocketBaseAdapter } from '@profullstack/auth-system';
+
+const pocketbaseAdapter = new PocketBaseAdapter({
+  url: 'http://127.0.0.1:8090',
+  usersCollection: 'auth_users', // Optional: defaults to 'auth_users'
+  tokensCollection: 'auth_invalidated_tokens', // Optional: defaults to 'auth_invalidated_tokens'
+  adminEmail: 'admin@example.com', // Optional: for admin authentication
+  adminPassword: 'password' // Optional: for admin authentication
+});
+
+const authSystem = createAuthSystem({
+  adapter: pocketbaseAdapter,
+  tokenOptions: {
+    secret: 'your-jwt-secret-key'
+  }
+});
+```
+
 ### Creating Custom Adapters
 
 You can create custom adapters by implementing the adapter interface:
@@ -269,9 +394,17 @@ class CustomAdapter {
 }
 ```
 
+> **Note:** Before using the PocketBase adapter, you need to set up the required collections in your PocketBase database. You can use the [pocketbase-schema.json](./examples/pocketbase-schema.json) file to create the necessary collections and indexes.
+
 ## Examples
 
-See the [examples](./examples) directory for complete usage examples.
+See the [examples](./examples) directory for complete usage examples:
+
+- [Basic Usage](./examples/basic-usage.js): Simple example of using the auth system
+- [Supabase Usage](./examples/supabase-usage.js): Example of using the auth system with Supabase
+- [Supabase Schema](./examples/supabase-schema.sql): SQL schema for setting up Supabase tables
+- [PocketBase Usage](./examples/pocketbase-usage.js): Example of using the auth system with PocketBase
+- [PocketBase Schema](./examples/pocketbase-schema.json): JSON schema for setting up PocketBase collections
 
 ## License
 
