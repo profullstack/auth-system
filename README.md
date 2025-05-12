@@ -405,6 +405,20 @@ See the [examples](./examples) directory for complete usage examples:
 - [Supabase Schema](./examples/supabase-schema.sql): SQL schema for setting up Supabase tables
 - [PocketBase Usage](./examples/pocketbase-usage.js): Example of using the auth system with PocketBase
 - [PocketBase Schema](./examples/pocketbase-schema.json): JSON schema for setting up PocketBase collections
+- [Browser Integration](./examples/browser-integration/): Complete example of integrating the auth system into a browser-based web application
+
+### Browser Integration
+
+The browser integration example provides a complete authentication system for web applications, including:
+
+- User registration with payment integration (Stripe, crypto)
+- Login/logout functionality
+- Password reset and change
+- Profile management
+- API key management
+- Authentication status utilities
+
+It includes a browser-friendly wrapper around the auth-system module with localStorage support and event handling. See the [Browser Integration README](./examples/browser-integration/README.md) for more details.
 
 ## License
 
