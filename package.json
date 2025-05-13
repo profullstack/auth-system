@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/auth-system",
-  "version": "0.2.17",
+  "version": "0.3.0",
   "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
   "type": "module",
   "main": "dist/index.js",
