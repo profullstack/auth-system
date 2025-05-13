@@ -18,12 +18,13 @@
   },
   "scripts": {
     "build": "mkdir -p dist && cp -r src/* dist/",
-    "test": "pnpm install && mocha --bail test/index.js",
-    "prepublishOnly": "npm run build"
+    "test": "pnpm install && vitest run --bail 1",
+    "prepublishOnly": "npm run build",
+    "prepare": "husky install"
   },
   "devDependencies": {
-    "chai": "^4.3.7",
-    "mocha": "^10.2.0"
+    "vitest": "^1.3.1",
+    "@vitest/coverage-v8": "^1.3.1"
   },
   "keywords": [
     "authentication",
