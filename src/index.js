@@ -648,5 +648,8 @@ export function createAuthSystem(options = {}) {
   return new AuthSystem(options);
 }
 
+// Import and export AuthClient for browser integration
+export { AuthClient } from './client/auth-client.js';
+
 // Default export
 export default createAuthSystem;
