@@ -308,9 +308,12 @@ class AuthSystem {
       // Hash new password
       const hashedPassword = await this.passwordUtils.hashPassword(password);
       
-      // Update user password
+      // Update user password. Stamp passwordChangedAt so that any access
+      // tokens issued before this moment are rejected by validateToken()
+      // (a password change / reset must revoke previously issued sessions).
       await this.adapter.updateUser(user.id, {
         password: hashedPassword,
+        passwordChangedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
       
@@ -397,9 +400,12 @@ class AuthSystem {
       // Hash new password
       const hashedPassword = await this.passwordUtils.hashPassword(newPassword);
       
-      // Update user password
+      // Update user password. Stamp passwordChangedAt so that any access
+      // tokens issued before this moment are rejected by validateToken()
+      // (a password change / reset must revoke previously issued sessions).
       await this.adapter.updateUser(user.id, {
         password: hashedPassword,
+        passwordChangedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
       
@@ -491,7 +497,18 @@ class AuthSystem {
       if (!user) {
         return null;
       }
-      
+
+      // Reject tokens issued before the user's most recent password change /
+      // reset. JWT `iat` is in seconds; passwordChangedAt is an ISO string.
+      // Guarded so users without the field (issued before this feature) are
+      // unaffected.
+      if (user.passwordChangedAt && payload.iat) {
+        const changedAtMs = new Date(user.passwordChangedAt).getTime();
+        if (!Number.isNaN(changedAtMs) && payload.iat * 1000 < changedAtMs) {
+          return null;
+        }
+      }
+
       // Return user data (without password)
       return {
         userId: user.id,
