@@ -5,6 +5,7 @@
  */
 
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'node:crypto';
 
 /**
  * Create password utilities
@@ -136,7 +137,7 @@ export function createPasswordUtils(options = {}) {
     // Generate password
     let password = '';
     for (let i = 0; i < length; i++) {
-      const randomIndex = Math.floor(Math.random() * charPool.length);
+      const randomIndex = randomInt(charPool.length);
       password += charPool[randomIndex];
     }
     
@@ -146,22 +147,22 @@ export function createPasswordUtils(options = {}) {
     // If not valid, add required character types
     if (!passwordValid) {
       if (config.requireUppercase && !/[A-Z]/.test(password)) {
-        const randomIndex = Math.floor(Math.random() * uppercaseChars.length);
+        const randomIndex = randomInt(uppercaseChars.length);
         password = password.substring(0, password.length - 1) + uppercaseChars[randomIndex];
       }
       
       if (config.requireLowercase && !/[a-z]/.test(password)) {
-        const randomIndex = Math.floor(Math.random() * lowercaseChars.length);
+        const randomIndex = randomInt(lowercaseChars.length);
         password = password.substring(0, password.length - 1) + lowercaseChars[randomIndex];
       }
       
       if (config.requireNumbers && !/[0-9]/.test(password)) {
-        const randomIndex = Math.floor(Math.random() * numberChars.length);
+        const randomIndex = randomInt(numberChars.length);
         password = password.substring(0, password.length - 1) + numberChars[randomIndex];
       }
       
       if (config.requireSpecialChars && !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
-        const randomIndex = Math.floor(Math.random() * specialChars.length);
+        const randomIndex = randomInt(specialChars.length);
         password = password.substring(0, password.length - 1) + specialChars[randomIndex];
       }
     }
