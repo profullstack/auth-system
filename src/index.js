@@ -358,10 +358,18 @@ class AuthSystem {
         emailVerified: true,
         updatedAt: new Date().toISOString()
       });
-      
+
+      // Invalidate the verification token so it cannot be replayed. Like the
+      // password reset token, this is a JWT valid for a long window (24h);
+      // without this, the same token could be resubmitted (e.g. leaked via
+      // browser history, referer, or mail server link-prefetching) to mint a
+      // fresh set of live session tokens for the account at any time before
+      // expiry, regardless of whether the email was already verified.
+      await this.tokenUtils.invalidateToken(token);
+
       // Generate tokens
       const tokens = await this.tokenUtils.generateTokens(user.id);
-      
+
       // Return success
       return {
         success: true,

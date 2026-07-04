@@ -424,12 +424,23 @@ describe('AuthSystem', () => {
     
     it('should reject invalid tokens', async () => {
       const invalidToken = 'invalid-token';
-      
+
       await expect(authSystem.verifyEmail(invalidToken))
         .rejects.toThrow('Invalid or expired email verification token');
     });
+
+    it('should reject a replayed verification token (single-use)', async () => {
+      // First use succeeds and mints tokens.
+      const first = await authSystem.verifyEmail(verificationToken);
+      expect(first.success).toBe(true);
+
+      // Replaying the same token must fail instead of minting another
+      // live session for the account.
+      await expect(authSystem.verifyEmail(verificationToken))
+        .rejects.toThrow('Invalid or expired email verification token');
+    });
   });
-  
+
   describe('changePassword', () => {
     let userId;
     
