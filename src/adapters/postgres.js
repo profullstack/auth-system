@@ -1,112 +1,253 @@
 /**
  * PostgreSQL Adapter for Auth System
- * 
- * This adapter uses PostgreSQL for user storage and authentication.
- * It requires the pg package.
+ *
+ * Users and invalidated tokens in Postgres, with the same behaviour as the
+ * memory adapter so the two are interchangeable.
+ *
+ * The `pg` package is a peer, not a dependency: this module is used by projects
+ * that never touch Postgres, and a driver they cannot use is a driver they
+ * should not install. Pass a pool in, or let the adapter make one.
+ *
+ *   import pg from 'pg';
+ *   const adapter = new PostgresAdapter({
+ *     pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }),
+ *   });
+ *   await adapter.initialize();   // creates the tables if they are missing
  */
 
-// import { Pool } from 'pg';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
- * PostgreSQL Adapter
+ * A row as the rest of the auth system expects it.
+ *
+ * Postgres hands back lower-case column names and Date objects; the memory
+ * adapter deals in camelCase and ISO strings, and everything above the adapter
+ * is written against that shape.
  */
+function toUser(row) {
+  if (!row) {
+    return null;
+  }
+  const iso = (value) => (value instanceof Date ? value.toISOString() : value ?? null);
+  return {
+    id: row.id,
+    email: row.email,
+    password: row.password,
+    profile: row.profile ?? {},
+    emailVerified: row.email_verified ?? false,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+    lastLoginAt: iso(row.last_login_at),
+  };
+}
+
+/** Columns a caller may set, and the column each one is stored in. */
+const UPDATABLE = {
+  email: 'email',
+  password: 'password',
+  emailVerified: 'email_verified',
+  lastLoginAt: 'last_login_at',
+};
+
 export class PostgresAdapter {
   /**
-   * Create a new PostgreSQL Adapter
-   * @param {Object} options - Configuration options
-   * @param {string} options.host - PostgreSQL host
-   * @param {number} options.port - PostgreSQL port
-   * @param {string} options.database - PostgreSQL database name
-   * @param {string} options.user - PostgreSQL username
-   * @param {string} options.password - PostgreSQL password
-   * @param {string} options.usersTable - Name of the users table (default: 'users')
-   * @param {string} options.tokensTable - Name of the invalidated tokens table (default: 'invalidated_tokens')
+   * @param {Object} options
+   * @param {Object} [options.pool] - A pg Pool. Made from the rest if absent.
+   * @param {string} [options.connectionString]
+   * @param {string} [options.host]
+   * @param {number} [options.port]
+   * @param {string} [options.database]
+   * @param {string} [options.user]
+   * @param {string} [options.password]
+   * @param {string} [options.usersTable] - Default 'users'.
+   * @param {string} [options.tokensTable] - Default 'invalidated_tokens'.
    */
-  constructor(options) {
-    // This is a stub implementation
-    // TODO: Implement PostgreSQL adapter
+  constructor(options = {}) {
     this.options = options;
-    this.usersTable = options.usersTable || 'users';
-    this.tokensTable = options.tokensTable || 'invalidated_tokens';
+    // Identifiers cannot be parameterised, so they are restricted rather than
+    // quoted: a table name is configuration, but it still reaches SQL as text.
+    this.usersTable = safeIdentifier(options.usersTable || 'users');
+    this.tokensTable = safeIdentifier(options.tokensTable || 'invalidated_tokens');
+    this.pool = options.pool ?? null;
+    this.ready = false;
+  }
+
+  /** The pool, made on first use when one was not supplied. */
+  async getPool() {
+    if (this.pool) {
+      return this.pool;
+    }
+    let pg;
+    try {
+      pg = (await import('pg')).default;
+    } catch {
+      throw new Error(
+        'PostgresAdapter needs the `pg` package, or a `pool` passed to its constructor.'
+      );
+    }
+    const { connectionString, host, port, database, user, password } = this.options;
+    this.pool = new pg.Pool(
+      connectionString ? { connectionString } : { host, port, database, user, password }
+    );
+    return this.pool;
+  }
+
+  async query(text, values = []) {
+    const pool = await this.getPool();
+    return pool.query(text, values);
   }
 
   /**
-   * Create a new user
-   * @param {Object} userData - User data
-   * @returns {Promise<Object>} - Created user
+   * Create the tables if they are not there. Safe to call on every boot, and
+   * cheaper than asking every project to carry a migration for two tables.
    */
+  async initialize() {
+    if (this.ready) {
+      return;
+    }
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS ${this.usersTable} (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        password TEXT,
+        profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_login_at TIMESTAMPTZ
+      )
+    `);
+    // Addresses are matched case-insensitively everywhere else, so uniqueness
+    // has to be case-insensitive too, or two accounts can share an address.
+    await this.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS ${this.usersTable}_email_lower_idx
+         ON ${this.usersTable} (lower(email))`
+    );
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS ${this.tokensTable} (
+        token TEXT PRIMARY KEY,
+        invalidated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    this.ready = true;
+  }
+
   async createUser(userData) {
-    // This is a stub implementation
-    // TODO: Implement user creation in PostgreSQL
-    throw new Error('PostgresAdapter.createUser not implemented');
+    await this.initialize();
+    const id = userData.id || uuidv4();
+    const now = new Date().toISOString();
+
+    const { rows } = await this.query(
+      `INSERT INTO ${this.usersTable}
+         (id, email, password, profile, email_verified, created_at, updated_at, last_login_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+       RETURNING *`,
+      [
+        id,
+        userData.email,
+        userData.password ?? null,
+        JSON.stringify(userData.profile || {}),
+        userData.emailVerified || false,
+        userData.createdAt || now,
+        userData.updatedAt || now,
+      ]
+    );
+    return toUser(rows[0]);
   }
 
-  /**
-   * Get a user by ID
-   * @param {string} userId - User ID
-   * @returns {Promise<Object|null>} - User object or null if not found
-   */
   async getUserById(userId) {
-    // This is a stub implementation
-    // TODO: Implement getting user by ID from PostgreSQL
-    throw new Error('PostgresAdapter.getUserById not implemented');
+    await this.initialize();
+    const { rows } = await this.query(`SELECT * FROM ${this.usersTable} WHERE id = $1`, [userId]);
+    return toUser(rows[0]);
   }
 
-  /**
-   * Get a user by email
-   * @param {string} email - User email
-   * @returns {Promise<Object|null>} - User object or null if not found
-   */
   async getUserByEmail(email) {
-    // This is a stub implementation
-    // TODO: Implement getting user by email from PostgreSQL
-    throw new Error('PostgresAdapter.getUserByEmail not implemented');
+    await this.initialize();
+    const { rows } = await this.query(
+      `SELECT * FROM ${this.usersTable} WHERE lower(email) = lower($1)`,
+      [email]
+    );
+    return toUser(rows[0]);
   }
 
-  /**
-   * Update a user
-   * @param {string} userId - User ID
-   * @param {Object} updates - Updates to apply
-   * @returns {Promise<Object>} - Updated user
-   */
   async updateUser(userId, updates) {
-    // This is a stub implementation
-    // TODO: Implement updating user in PostgreSQL
-    throw new Error('PostgresAdapter.updateUser not implemented');
+    await this.initialize();
+
+    const sets = [];
+    const values = [];
+    for (const [key, column] of Object.entries(UPDATABLE)) {
+      if (updates[key] !== undefined) {
+        values.push(updates[key]);
+        sets.push(`${column} = $${values.length}`);
+      }
+    }
+    // A profile is merged rather than replaced, matching the memory adapter:
+    // updating one field of it must not drop the others.
+    if (updates.profile !== undefined) {
+      values.push(JSON.stringify(updates.profile));
+      sets.push(`profile = profile || $${values.length}::jsonb`);
+    }
+    values.push(new Date().toISOString());
+    sets.push(`updated_at = $${values.length}`);
+
+    values.push(userId);
+    const { rows } = await this.query(
+      `UPDATE ${this.usersTable} SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    if (!rows[0]) {
+      throw new Error('User not found');
+    }
+    return toUser(rows[0]);
   }
 
-  /**
-   * Delete a user
-   * @param {string} userId - User ID
-   * @returns {Promise<boolean>} - Whether the user was deleted
-   */
   async deleteUser(userId) {
-    // This is a stub implementation
-    // TODO: Implement deleting user from PostgreSQL
-    throw new Error('PostgresAdapter.deleteUser not implemented');
+    await this.initialize();
+    const { rowCount } = await this.query(`DELETE FROM ${this.usersTable} WHERE id = $1`, [userId]);
+    return rowCount > 0;
   }
 
-  /**
-   * Invalidate a token
-   * @param {string} token - Token to invalidate
-   * @returns {Promise<void>}
-   */
   async invalidateToken(token) {
-    // This is a stub implementation
-    // TODO: Implement token invalidation in PostgreSQL
-    throw new Error('PostgresAdapter.invalidateToken not implemented');
+    await this.initialize();
+    // Invalidating twice is not an error: a client that retries a logout has
+    // done nothing wrong.
+    await this.query(
+      `INSERT INTO ${this.tokensTable} (token) VALUES ($1) ON CONFLICT (token) DO NOTHING`,
+      [token]
+    );
   }
 
-  /**
-   * Check if a token is invalidated
-   * @param {string} token - Token to check
-   * @returns {Promise<boolean>} - Whether the token is invalidated
-   */
   async isTokenInvalidated(token) {
-    // This is a stub implementation
-    // TODO: Implement token invalidation check in PostgreSQL
-    throw new Error('PostgresAdapter.isTokenInvalidated not implemented');
+    await this.initialize();
+    const { rows } = await this.query(`SELECT 1 FROM ${this.tokensTable} WHERE token = $1`, [token]);
+    return rows.length > 0;
   }
+
+  /** Empty both tables. For tests. */
+  async clear() {
+    await this.initialize();
+    await this.query(`DELETE FROM ${this.usersTable}`);
+    await this.query(`DELETE FROM ${this.tokensTable}`);
+  }
+
+  /** Let go of the pool, so a process can exit. */
+  async close() {
+    await this.pool?.end?.();
+    this.pool = null;
+    this.ready = false;
+  }
+}
+
+/**
+ * A table name that can be interpolated. Identifiers cannot be bound as
+ * parameters, so anything that is not a plain name is refused rather than
+ * escaped and hoped over.
+ */
+function safeIdentifier(name) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(`PostgresAdapter: unsafe table name ${JSON.stringify(name)}`);
+  }
+  return name;
 }
 
 export default PostgresAdapter;
