@@ -58,5 +58,13 @@
   "bugs": {
     "url": "https://github.com/profullstack/auth-system/issues"
   },
-  "homepage": "https://github.com/profullstack/auth-system#readme"
+  "homepage": "https://github.com/profullstack/auth-system#readme",
+  "peerDependencies": {
+    "pg": "^8"
+  },
+  "peerDependenciesMeta": {
+    "pg": {
+      "optional": true
+    }
+  }
 }
