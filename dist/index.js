@@ -308,12 +308,22 @@ class AuthSystem {
       // Hash new password
       const hashedPassword = await this.passwordUtils.hashPassword(password);
       
-      // Update user password
+      // Update user password. Stamp passwordChangedAt so that any access
+      // tokens issued before this moment are rejected by validateToken()
+      // (a password change / reset must revoke previously issued sessions).
       await this.adapter.updateUser(user.id, {
         password: hashedPassword,
+        passwordChangedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      
+
+      // Invalidate the reset token so it cannot be replayed. Reset tokens are
+      // JWTs valid for a full hour; without this, the same token could be
+      // submitted again (e.g. leaked via history/referer/logs) to set another
+      // password within that window. Done after the DB update so a failed
+      // write never burns a still-valid token.
+      await this.tokenUtils.invalidateToken(token);
+
       // Return success
       return {
         success: true,
@@ -348,10 +358,18 @@ class AuthSystem {
         emailVerified: true,
         updatedAt: new Date().toISOString()
       });
-      
+
+      // Invalidate the verification token so it cannot be replayed. Like the
+      // password reset token, this is a JWT valid for a long window (24h);
+      // without this, the same token could be resubmitted (e.g. leaked via
+      // browser history, referer, or mail server link-prefetching) to mint a
+      // fresh set of live session tokens for the account at any time before
+      // expiry, regardless of whether the email was already verified.
+      await this.tokenUtils.invalidateToken(token);
+
       // Generate tokens
       const tokens = await this.tokenUtils.generateTokens(user.id);
-      
+
       // Return success
       return {
         success: true,
@@ -397,9 +415,12 @@ class AuthSystem {
       // Hash new password
       const hashedPassword = await this.passwordUtils.hashPassword(newPassword);
       
-      // Update user password
+      // Update user password. Stamp passwordChangedAt so that any access
+      // tokens issued before this moment are rejected by validateToken()
+      // (a password change / reset must revoke previously issued sessions).
       await this.adapter.updateUser(user.id, {
         password: hashedPassword,
+        passwordChangedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
       
@@ -491,7 +512,18 @@ class AuthSystem {
       if (!user) {
         return null;
       }
-      
+
+      // Reject tokens issued before the user's most recent password change /
+      // reset. JWT `iat` is in seconds; passwordChangedAt is an ISO string.
+      // Guarded so users without the field (issued before this feature) are
+      // unaffected.
+      if (user.passwordChangedAt && payload.iat) {
+        const changedAtMs = new Date(user.passwordChangedAt).getTime();
+        if (!Number.isNaN(changedAtMs) && payload.iat * 1000 < changedAtMs) {
+          return null;
+        }
+      }
+
       // Return user data (without password)
       return {
         userId: user.id,
@@ -507,13 +539,21 @@ class AuthSystem {
   /**
    * Logout a user
    * @param {string} refreshToken - Refresh token
+   * @param {string} [accessToken] - Access token to also revoke (recommended)
    * @returns {Promise<Object>} - Logout result
    */
-  async logout(refreshToken) {
+  async logout(refreshToken, accessToken) {
     try {
       // Invalidate refresh token
       await this.tokenUtils.invalidateRefreshToken(refreshToken);
-      
+
+      // Also invalidate the access token if the caller supplies it, so a
+      // stolen/leaked access token cannot be used until its natural expiry
+      // after the user logs out. Optional and backward-compatible.
+      if (accessToken) {
+        await this.tokenUtils.invalidateToken(accessToken);
+      }
+
       // Return success
       return {
         success: true,
