@@ -41,13 +41,13 @@ function toUser(row) {
   };
 }
 
-/** Columns a caller may set, and the column each one is stored in. */
-const UPDATABLE = {
-  email: 'email',
-  password: 'password',
-  emailVerified: 'email_verified',
-  lastLoginAt: 'last_login_at',
-};
+/** Fields a caller may set. The column for each is derived, not spelled out. */
+const UPDATABLE = ['email', 'password', 'emailVerified', 'lastLoginAt'];
+
+/** emailVerified -> email_verified. */
+function columnFor(field) {
+  return field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
 
 export class PostgresAdapter {
   /**
@@ -70,6 +70,7 @@ export class PostgresAdapter {
     this.tokensTable = safeIdentifier(options.tokensTable || 'invalidated_tokens');
     this.pool = options.pool ?? null;
     this.ready = false;
+    this.sql = statements(this.usersTable, this.tokensTable);
   }
 
   /** The pool, made on first use when one was not supplied. */
@@ -105,30 +106,11 @@ export class PostgresAdapter {
     if (this.ready) {
       return;
     }
-    await this.query(`
-      CREATE TABLE IF NOT EXISTS ${this.usersTable} (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL,
-        password TEXT,
-        profile JSONB NOT NULL DEFAULT '{}'::jsonb,
-        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        last_login_at TIMESTAMPTZ
-      )
-    `);
+    await this.query(this.sql.createUsers);
     // Addresses are matched case-insensitively everywhere else, so uniqueness
     // has to be case-insensitive too, or two accounts can share an address.
-    await this.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS ${this.usersTable}_email_lower_idx
-         ON ${this.usersTable} (lower(email))`
-    );
-    await this.query(`
-      CREATE TABLE IF NOT EXISTS ${this.tokensTable} (
-        token TEXT PRIMARY KEY,
-        invalidated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
+    await this.query(this.sql.createEmailIndex);
+    await this.query(this.sql.createTokens);
     this.ready = true;
   }
 
@@ -137,12 +119,7 @@ export class PostgresAdapter {
     const id = userData.id || uuidv4();
     const now = new Date().toISOString();
 
-    const { rows } = await this.query(
-      `INSERT INTO ${this.usersTable}
-         (id, email, password, profile, email_verified, created_at, updated_at, last_login_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
-       RETURNING *`,
-      [
+    const { rows } = await this.query(this.sql.insertUser, [
         id,
         userData.email,
         userData.password ?? null,
@@ -157,16 +134,13 @@ export class PostgresAdapter {
 
   async getUserById(userId) {
     await this.initialize();
-    const { rows } = await this.query(`SELECT * FROM ${this.usersTable} WHERE id = $1`, [userId]);
+    const { rows } = await this.query(this.sql.selectById, [userId]);
     return toUser(rows[0]);
   }
 
   async getUserByEmail(email) {
     await this.initialize();
-    const { rows } = await this.query(
-      `SELECT * FROM ${this.usersTable} WHERE lower(email) = lower($1)`,
-      [email]
-    );
+    const { rows } = await this.query(this.sql.selectByEmail, [email]);
     return toUser(rows[0]);
   }
 
@@ -175,10 +149,10 @@ export class PostgresAdapter {
 
     const sets = [];
     const values = [];
-    for (const [key, column] of Object.entries(UPDATABLE)) {
-      if (updates[key] !== undefined) {
-        values.push(updates[key]);
-        sets.push(`${column} = $${values.length}`);
+    for (const field of UPDATABLE) {
+      if (updates[field] !== undefined) {
+        values.push(updates[field]);
+        sets.push(`${columnFor(field)} = $${values.length}`);
       }
     }
     // A profile is merged rather than replaced, matching the memory adapter:
@@ -191,10 +165,7 @@ export class PostgresAdapter {
     sets.push(`updated_at = $${values.length}`);
 
     values.push(userId);
-    const { rows } = await this.query(
-      `UPDATE ${this.usersTable} SET ${sets.join(', ')} WHERE id = $${values.length} RETURNING *`,
-      values
-    );
+    const { rows } = await this.query(this.sql.updateUser(sets, values.length), values);
     if (!rows[0]) {
       throw new Error('User not found');
     }
@@ -203,7 +174,7 @@ export class PostgresAdapter {
 
   async deleteUser(userId) {
     await this.initialize();
-    const { rowCount } = await this.query(`DELETE FROM ${this.usersTable} WHERE id = $1`, [userId]);
+    const { rowCount } = await this.query(this.sql.deleteUser, [userId]);
     return rowCount > 0;
   }
 
@@ -211,23 +182,20 @@ export class PostgresAdapter {
     await this.initialize();
     // Invalidating twice is not an error: a client that retries a logout has
     // done nothing wrong.
-    await this.query(
-      `INSERT INTO ${this.tokensTable} (token) VALUES ($1) ON CONFLICT (token) DO NOTHING`,
-      [token]
-    );
+    await this.query(this.sql.insertToken, [token]);
   }
 
   async isTokenInvalidated(token) {
     await this.initialize();
-    const { rows } = await this.query(`SELECT 1 FROM ${this.tokensTable} WHERE token = $1`, [token]);
+    const { rows } = await this.query(this.sql.selectToken, [token]);
     return rows.length > 0;
   }
 
   /** Empty both tables. For tests. */
   async clear() {
     await this.initialize();
-    await this.query(`DELETE FROM ${this.usersTable}`);
-    await this.query(`DELETE FROM ${this.tokensTable}`);
+    await this.query(this.sql.clearUsers);
+    await this.query(this.sql.clearTokens);
   }
 
   /** Let go of the pool, so a process can exit. */
@@ -236,6 +204,55 @@ export class PostgresAdapter {
     this.pool = null;
     this.ready = false;
   }
+}
+
+/**
+ * Every statement, built once from names that have already been checked.
+ *
+ * This is the only place a table name reaches SQL. Values are never
+ * interpolated anywhere -- they are bound as $1, $2 and so on -- so a reader
+ * has one function to satisfy themselves about rather than nine call sites.
+ */
+function statements(users, tokens) {
+  return {
+    createUsers: `
+      CREATE TABLE IF NOT EXISTS ${users} (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        password TEXT,
+        profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        last_login_at TIMESTAMPTZ
+      )`,
+    createEmailIndex: `
+      CREATE UNIQUE INDEX IF NOT EXISTS ${users}_email_lower_idx
+        ON ${users} (lower(email))`,
+    createTokens: `
+      CREATE TABLE IF NOT EXISTS ${tokens} (
+        token TEXT PRIMARY KEY,
+        invalidated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`,
+    insertUser: `
+      INSERT INTO ${users}
+        (id, email, password, profile, email_verified, created_at, updated_at, last_login_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+      RETURNING *`,
+    selectById: `SELECT * FROM ${users} WHERE id = $1`,
+    selectByEmail: `SELECT * FROM ${users} WHERE lower(email) = lower($1)`,
+    deleteUser: `DELETE FROM ${users} WHERE id = $1`,
+    insertToken: `INSERT INTO ${tokens} (token) VALUES ($1) ON CONFLICT (token) DO NOTHING`,
+    selectToken: `SELECT 1 FROM ${tokens} WHERE token = $1`,
+    clearUsers: `DELETE FROM ${users}`,
+    clearTokens: `DELETE FROM ${tokens}`,
+    /**
+     * The one statement whose shape depends on the call: only the columns the
+     * caller actually set are written. The fragments come from a fixed list of
+     * field names, never from the caller's own strings.
+     */
+    updateUser: (sets, idAt) => `UPDATE ${users} SET ${sets.join(', ')} WHERE id = $${idAt} RETURNING *`,
+  };
 }
 
 /**
