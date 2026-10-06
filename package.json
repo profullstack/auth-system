@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/auth-system",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
   "type": "module",
   "main": "dist/index.js",
@@ -26,8 +26,13 @@
     "prepare": "husky install || true"
   },
   "devDependencies": {
-    "vitest": "^1.3.1",
-    "@vitest/coverage-v8": "^1.3.1"
+    "@supabase/supabase-js": "^2.49.4",
+    "@vitest/coverage-v8": "^1.3.1",
+    "mongodb": "^6.5.0",
+    "mysql2": "^3.9.2",
+    "pg": "^8.11.3",
+    "pocketbase": "^0.21.1",
+    "vitest": "^1.3.1"
   },
   "keywords": [
     "authentication",
@@ -47,13 +52,6 @@
     "jsonwebtoken": "^9.0.2",
     "uuid": "^11.1.0"
   },
-  "optionalDependencies": {
-    "@supabase/supabase-js": "^2.49.4",
-    "mysql2": "^3.9.2",
-    "pg": "^8.11.3",
-    "mongodb": "^6.5.0",
-    "pocketbase": "^0.21.1"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/profullstack/auth-system"
@@ -63,10 +61,26 @@
   },
   "homepage": "https://github.com/profullstack/auth-system#readme",
   "peerDependencies": {
-    "pg": "^8"
+    "pg": "^8.11.3",
+    "@supabase/supabase-js": "^2.49.4",
+    "mysql2": "^3.9.2",
+    "mongodb": "^6.5.0",
+    "pocketbase": "^0.21.1"
   },
   "peerDependenciesMeta": {
     "pg": {
+      "optional": true
+    },
+    "@supabase/supabase-js": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "pocketbase": {
       "optional": true
     }
   }
