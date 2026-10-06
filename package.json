@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/auth-system",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
   "type": "module",
   "main": "dist/index.js",
@@ -14,7 +14,10 @@
     "./mysql": "./dist/adapters/mysql.js",
     "./postgres": "./dist/adapters/postgres.js",
     "./mongodb": "./dist/adapters/mongodb.js",
-    "./pocketbase": "./dist/adapters/pocketbase.js"
+    "./pocketbase": "./dist/adapters/pocketbase.js",
+    "./oauth2": "./dist/oauth2/index.js",
+    "./oauth2/postgres": "./dist/oauth2/postgres.js",
+    "./cli": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "mkdir -p dist && cp -r src/* dist/",
