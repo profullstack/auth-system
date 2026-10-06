@@ -396,6 +396,48 @@ class CustomAdapter {
 
 > **Note:** Before using the PocketBase adapter, you need to set up the required collections in your PocketBase database. You can use the [pocketbase-schema.json](./examples/pocketbase-schema.json) file to create the necessary collections and indexes.
 
+## OAuth 2.1 and CLI sign-in
+
+Every Profullstack app signs its CLI, TUI, stdio MCP server and desktop shell in
+the same way, so the pieces live here instead of being rebuilt per app.
+
+**Server** (`@profullstack/auth-system/oauth2`): authorization code + PKCE S256
+only, RFC 8252 loopback redirects, single-use 5-minute codes, 1-hour access
+tokens, refresh tokens that rotate on every use, and reuse detection that revokes
+the whole sign-in. Only hashes are stored.
+
+```js
+import { createOAuthServer } from '@profullstack/auth-system/oauth2';
+import { OAUTH2_SCHEMA, postgresStore } from '@profullstack/auth-system/oauth2/postgres';
+
+await sql.unsafe(OAUTH2_SCHEMA); // once, idempotent
+const oauth = createOAuthServer({
+  store: postgresStore(sql),
+  issuer: 'https://example.com',
+  tokenPrefix: 'ex',
+  clients: { 'example-cli': { name: 'example CLI', redirectUris: ['http://127.0.0.1/callback', 'https://example.com/oauth/cli'] } },
+});
+// GET  /oauth/authorize -> oauth.validateAuthorize(query), show consent, then redirect to oauth.approve({...params, userId})
+// POST /oauth/token     -> oauth.token(formBody)
+// POST /oauth/revoke    -> oauth.revoke(formBody.token)
+// GET  /.well-known/oauth-authorization-server -> oauth.metadata()
+// API auth: await oauth.verifyAccessToken(req.headers.authorization)
+```
+
+**Client** (`@profullstack/auth-system/cli`): opens the browser, waits on a
+loopback port, checks state, exchanges the code with its PKCE verifier and keeps
+the tokens at `~/.config/<app>/auth.json` (0600). Over SSH it prints the URL and
+asks for the code the server's `/oauth/cli` page shows.
+
+```js
+import { createTokenStore, getAccessToken, login, logout } from '@profullstack/auth-system/cli';
+
+const store = createTokenStore('example');
+await login({ issuer: 'https://example.com', clientId: 'example-cli', store });
+const bearer = await getAccessToken({ store }); // refreshes + stores the rotated pair
+await logout({ store });                        // revokes server-side, forgets locally
+```
+
 ## Examples
 
 See the [examples](./examples) directory for complete usage examples:
