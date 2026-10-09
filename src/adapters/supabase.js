@@ -5,7 +5,6 @@
  * It requires the @supabase/supabase-js package.
  */
 
-import { createClient } from '@supabase/supabase-js';
 
 /**
  * Supabase Adapter
@@ -28,12 +27,28 @@ export class SupabaseAdapter {
       throw new Error('Supabase API key is required');
     }
     
-    // Initialize Supabase client
-    this.supabase = createClient(options.supabaseUrl, options.supabaseKey);
+    // The driver is an optional peer, so it is loaded on first use: a static
+    // import made `import ... from '@profullstack/auth-system'` throw for every
+    // app without supabase-js, whichever adapter it actually used.
+    this.options = options;
+    this.supabase = options.client || null;
     
     // Set table names
     this.tableName = options.tableName || 'users';
     this.tokensTableName = options.tokensTableName || 'invalidated_tokens';
+  }
+
+  /** The Supabase client, created on first use. */
+  async client() {
+    if (this.supabase) return this.supabase;
+    let mod;
+    try {
+      mod = await import('@supabase/supabase-js');
+    } catch {
+      throw new Error('SupabaseAdapter needs the `@supabase/supabase-js` package, or a `client` passed to its constructor.');
+    }
+    this.supabase = mod.createClient(this.options.supabaseUrl, this.options.supabaseKey);
+    return this.supabase;
   }
 
   /**
@@ -56,7 +71,7 @@ export class SupabaseAdapter {
       };
       
       // Insert user into Supabase
-      const { data, error } = await this.supabase
+      const { data, error } = await (await this.client())
         .from(this.tableName)
         .insert(user)
         .select()
@@ -80,7 +95,7 @@ export class SupabaseAdapter {
    */
   async getUserById(userId) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await (await this.client())
         .from(this.tableName)
         .select('*')
         .eq('id', userId)
@@ -114,7 +129,7 @@ export class SupabaseAdapter {
    */
   async getUserByEmail(email) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await (await this.client())
         .from(this.tableName)
         .select('*')
         .eq('email', email.toLowerCase())
@@ -173,7 +188,7 @@ export class SupabaseAdapter {
       }
       
       // Update user in Supabase
-      const { data, error } = await this.supabase
+      const { data, error } = await (await this.client())
         .from(this.tableName)
         .update(formattedUpdates)
         .eq('id', userId)
@@ -198,7 +213,7 @@ export class SupabaseAdapter {
    */
   async deleteUser(userId) {
     try {
-      const { error } = await this.supabase
+      const { error } = await (await this.client())
         .from(this.tableName)
         .delete()
         .eq('id', userId);
@@ -220,7 +235,7 @@ export class SupabaseAdapter {
    */
   async invalidateToken(token) {
     try {
-      const { error } = await this.supabase
+      const { error } = await (await this.client())
         .from(this.tokensTableName)
         .insert({
           token,
@@ -242,7 +257,7 @@ export class SupabaseAdapter {
    */
   async isTokenInvalidated(token) {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await (await this.client())
         .from(this.tokensTableName)
         .select('*')
         .eq('token', token)
