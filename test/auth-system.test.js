@@ -799,4 +799,37 @@ describe('AuthSystem', () => {
       expect(next).not.toHaveBeenCalled();
     });
   });
+
+  describe('email templates', () => {
+    it('fills {{token}} and {{email}} into a template object', async () => {
+      await authSystem.register({ email: 'tpl@example.com', password: 'SecurePass123' });
+      const sent = mockSendEmail.mock.calls.at(-1)[0];
+      expect(sent.subject).toBe('Verify Your Email');
+      expect(sent.text).not.toContain('{{token}}');
+      expect(sent.text).toMatch(/^Use this token: \S+\.\S+\.\S+$/);
+      expect(sent.html).toContain(sent.text.slice('Use this token: '.length));
+    });
+
+    it('calls a template function with the token and the address', async () => {
+      const send = vi.fn().mockResolvedValue(true);
+      const sys = new AuthSystem({
+        adapter: new MemoryAdapter(),
+        tokenOptions: { secret: 'x'.repeat(32) },
+        emailOptions: {
+          sendEmail: send,
+          fromEmail: 'noreply@test.com',
+          verificationTemplate: ({ token, email }) => ({
+            subject: `Hi ${email}`,
+            text: `https://app.test/verify?token=${token}`,
+            html: `<a href="https://app.test/verify?token=${token}">verify</a>`,
+          }),
+        },
+      });
+      await sys.register({ email: 'fn@example.com', password: 'SecurePass123' });
+      const sent = send.mock.calls[0][0];
+      expect(sent.subject).toBe('Hi fn@example.com');
+      const token = new URL(sent.text).searchParams.get('token');
+      expect((await sys.verifyEmail(token)).success).toBe(true);
+    });
+  });
 });
