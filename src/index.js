@@ -43,7 +43,9 @@ class AuthSystem {
     this.tokenUtils = createTokenUtils({
       accessTokenExpiry: options.tokenOptions?.accessTokenExpiry || 3600, // 1 hour
       refreshTokenExpiry: options.tokenOptions?.refreshTokenExpiry || 604800, // 7 days
-      secret: options.tokenOptions?.secret || 'default-secret-change-me'
+      secret: options.tokenOptions?.secret || 'default-secret-change-me',
+      // Revocations go to the adapter so they survive a restart.
+      store: this.adapter
     });
     
     // Set up password utilities
