@@ -23,8 +23,15 @@ export function createTokenUtils(options = {}) {
     secret: options.secret || 'default-secret-change-me'
   };
   
-  // Store invalidated tokens
+  // Where used and revoked tokens are remembered. The adapter's own table when
+  // it has one: an in-process Set forgets every revocation on restart, which
+  // made a used verification or reset link, and a logged-out refresh token,
+  // valid again after each deploy. The Set is only the fallback.
   const invalidatedTokens = new Set();
+  const store =
+    options.store && typeof options.store.invalidateToken === 'function' && typeof options.store.isTokenInvalidated === 'function'
+      ? options.store
+      : null;
   
   /**
    * Generate an access token
@@ -223,6 +230,7 @@ export function createTokenUtils(options = {}) {
    */
   async function invalidateToken(token) {
     invalidatedTokens.add(token);
+    if (store) await store.invalidateToken(token);
   }
   
   /**
@@ -231,7 +239,7 @@ export function createTokenUtils(options = {}) {
    * @returns {Promise<void>}
    */
   async function invalidateRefreshToken(token) {
-    invalidateToken(token);
+    await invalidateToken(token);
   }
   
   /**
@@ -240,7 +248,8 @@ export function createTokenUtils(options = {}) {
    * @returns {Promise<boolean>} - Whether the token is invalidated
    */
   async function isTokenInvalidated(token) {
-    return invalidatedTokens.has(token);
+    if (invalidatedTokens.has(token)) return true;
+    return store ? Boolean(await store.isTokenInvalidated(token)) : false;
   }
   
   /**
