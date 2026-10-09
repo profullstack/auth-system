@@ -1,6 +1,6 @@
 {
   "name": "@profullstack/auth-system",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Flexible authentication system with user registration, login/logout, password reset, and session management",
   "type": "module",
   "main": "dist/index.js",
@@ -61,10 +61,10 @@
   },
   "homepage": "https://github.com/profullstack/auth-system#readme",
   "peerDependencies": {
-    "pg": "^8.11.3",
     "@supabase/supabase-js": "^2.49.4",
-    "mysql2": "^3.9.2",
     "mongodb": "^6.5.0",
+    "mysql2": "^3.9.2",
+    "pg": "^8.11.3",
     "pocketbase": "^0.21.1"
   },
   "peerDependenciesMeta": {

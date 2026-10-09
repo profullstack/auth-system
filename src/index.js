@@ -32,8 +32,8 @@ class AuthSystem {
    * @param {Object} options.emailOptions - Email configuration
    * @param {Function} options.emailOptions.sendEmail - Function to send emails
    * @param {string} options.emailOptions.fromEmail - From email address
-   * @param {string} options.emailOptions.resetPasswordTemplate - Reset password email template
-   * @param {string} options.emailOptions.verificationTemplate - Email verification template
+   * @param {Object|Function} options.emailOptions.resetPasswordTemplate - {subject,text,html} with {{token}}/{{email}}, or ({token,email}) => {subject,text,html}
+   * @param {Object|Function} options.emailOptions.verificationTemplate - {subject,text,html} with {{token}}/{{email}}, or ({token,email}) => {subject,text,html}
    */
   constructor(options = {}) {
     // Set up adapter
@@ -609,7 +609,7 @@ class AuthSystem {
     }
     
     // Use custom template if provided, otherwise use default
-    const template = this.emailOptions.resetPasswordTemplate || {
+    const template = renderTemplate(this.emailOptions.resetPasswordTemplate, { token, email }) || {
       subject: 'Password Reset',
       text: `Click the link below to reset your password:\n\n${token}`,
       html: `<p>Click the link below to reset your password:</p><p><a href="${token}">${token}</a></p>`
@@ -638,7 +638,7 @@ class AuthSystem {
     }
     
     // Use custom template if provided, otherwise use default
-    const template = this.emailOptions.verificationTemplate || {
+    const template = renderTemplate(this.emailOptions.verificationTemplate, { token, email }) || {
       subject: 'Email Verification',
       text: `Click the link below to verify your email:\n\n${token}`,
       html: `<p>Click the link below to verify your email:</p><p><a href="${token}">${token}</a></p>`
@@ -667,6 +667,22 @@ class AuthSystem {
 }
 
 // Create adapters
+/**
+ * A custom email template, filled in.
+ *
+ * A template is either an object whose strings may contain `{{token}}` and
+ * `{{email}}`, or a function `({ token, email }) => ({ subject, text, html })`.
+ * Without this a custom template could never carry the token at all, which is
+ * the one thing a verification or reset email exists to deliver.
+ */
+function renderTemplate(template, vars) {
+  if (!template) return null;
+  if (typeof template === 'function') return template(vars);
+  const fill = (s) =>
+    typeof s === 'string' ? s.replace(/\{\{\s*(token|email)\s*\}\}/g, (_, k) => vars[k] ?? '') : s;
+  return { subject: fill(template.subject), text: fill(template.text), html: fill(template.html) };
+}
+
 export { MemoryAdapter } from './adapters/memory.js';
 export { JwtAdapter } from './adapters/jwt.js';
 export { SupabaseAdapter } from './adapters/supabase.js';
