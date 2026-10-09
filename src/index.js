@@ -519,7 +519,9 @@ class AuthSystem {
       // unaffected.
       if (user.passwordChangedAt && payload.iat) {
         const changedAtMs = new Date(user.passwordChangedAt).getTime();
-        if (!Number.isNaN(changedAtMs) && payload.iat * 1000 < changedAtMs) {
+        // Compared in whole seconds, as `iat` is: in milliseconds, a sign-in in the
+        // same second as the change got a token that was already stale.
+        if (!Number.isNaN(changedAtMs) && payload.iat < Math.floor(changedAtMs / 1000)) {
           return null;
         }
       }
